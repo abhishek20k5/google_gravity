@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Buttons</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            background-color: #f0f0f0;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .container {
+            width: 100px; /* Width of the buttons */
+            height: 100px; /* Height of the buttons */
+            position: absolute;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 50%; /* Make it circular */
+            cursor: grab;
+            transition: box-shadow 0.2s;
+            font-size: 16px; /* Font size for text */
+            color: white;
+            font-weight: bold;
+        }
+
+        /* Unique colors for buttons */
+        #search { background-color: #007bff; }
+        #login { background-color: #28a745; }
+        #signup { background-color: #ffc107; }
+        #settings { background-color: #dc3545; }
+
+    </style>
+</head>
+<body>
+    <div class="container" id="search">Search</div>
+    <div class="container" id="login">Login</div>
+    <div class="container" id="signup">Sign Up</div>
+    <div class="container" id="settings">Settings</div>
+
+    <script>
+        const gravity = 0.5;     // Gravity strength
+        const damping = 0.8;     // Bounce factor
+        const dragFactor = 0.98; // Air resistance (drag)
+
+        class Button {
+            constructor(element) {
+                this.element = element;
+                this.radius = element.offsetWidth / 2; // Assuming width = height for circle
+                this.x = Math.random() * (window.innerWidth - this.radius * 2);
+                this.y = Math.random() * (window.innerHeight - this.radius * 2);
+                this.vx = Math.random() * 4 - 2; // Random initial velocity
+                this.vy = Math.random() * 4 - 2;
+                this.isDragging = false; // Track if button is being dragged
+            }
+
+            updatePosition() {
+                if (!this.isDragging) {
+                    this.vy += gravity; // Apply gravity
+                    this.vx *= dragFactor; // Apply drag
+                    this.vy *= dragFactor;
+
+                    this.x += this.vx;
+                    this.y += this.vy;
+
+                    // Collision with screen boundaries
+                    this.handleScreenCollision();
+                }
+
+                // Update the DOM element position
+                this.element.style.left = `${this.x}px`;
+                this.element.style.top = `${this.y}px`;
+            }
+
+            handleScreenCollision() {
+                if (this.x <= 0 || this.x + this.radius * 2 >= window.innerWidth) {
+                    this.vx *= -damping; // Reverse velocity and apply damping
+                    if (this.x <= 0) this.x = 0;
+                    if (this.x + this.radius * 2 >= window.innerWidth) {
+                        this.x = window.innerWidth - this.radius * 2;
+                    }
+                }
+
+                if (this.y <= 0 || this.y + this.radius * 2 >= window.innerHeight) {
+                    this.vy *= -damping; // Reverse velocity and apply damping
+                    if (this.y <= 0) this.y = 0;
+                    if (this.y + this.radius * 2 >= window.innerHeight) {
+                        this.y = window.innerHeight - this.radius * 2;
+                    }
+                }
+            }
+
+            startDrag(mouseX, mouseY) {
+                this.isDragging = true;
+                this.offsetX = mouseX - this.x;
+                this.offsetY = mouseY - this.y;
+                this.vx = 0;
+                this.vy = 0; // Stop movement while dragging
+            }
+
+            drag(mouseX, mouseY) {
+                if (this.isDragging) {
+                    this.x = mouseX - this.offsetX;
+                    this.y = mouseY - this.offsetY;
+                }
+            }
+
+            endDrag(vx, vy) {
+                this.isDragging = false;
+                this.vx = vx;
+                this.vy = vy; // Add a "throw" effect based on mouse velocity
+            }
+
+            resolveCollision(otherButton) {
+                const dx = otherButton.x + otherButton.radius - (this.x + this.radius);
+                const dy = otherButton.y + otherButton.radius - (this.y + this.radius);
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < this.radius + otherButton.radius) {
+                    const angle = Math.atan2(dy, dx);
+                    const sin = Math.sin(angle);
+                    const cos = Math.cos(angle);
+
+                    const v1 = { x: cos * this.vx + sin * this.vy, y: cos * this.vy - sin * this.vx };
+                    const v2 = { x: cos * otherButton.vx + sin * otherButton.vy, y: cos * otherButton.vy - sin * otherButton.vx };
+
+                    const temp = v1.x;
+                    v1.x = v2.x;
+                    v2.x = temp;
+
+                    this.vx = cos * v1.x - sin * v1.y;
+                    this.vy = cos * v1.y + sin * v1.x;
+                    otherButton.vx = cos * v2.x - sin * v2.y;
+                    otherButton.vy = cos * v2.y + sin * v2.x;
+
+                    const overlap = this.radius + otherButton.radius - distance;
+                    const correctionX = cos * overlap / 2;
+                    const correctionY = sin * overlap / 2;
+
+                    this.x -= correctionX;
+                    this.y -= correctionY;
+                    otherButton.x += correctionX;
+                    otherButton.y += correctionY;
+                }
+            }
+        }
+
+        const buttons = [...document.querySelectorAll('.container')].map(el => new Button(el));
+
+        let activeButton = null;
+
+        document.addEventListener('mousedown', (e) => {
+            const mouseX = e.clientX;
+            const mouseY = e.clientY;
+
+            buttons.forEach(button => {
+                const dx = mouseX - (button.x + button.radius);
+                const dy = mouseY - (button.y + button.radius);
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < button.radius) {
+                    activeButton = button;
+                    button.startDrag(mouseX, mouseY);
+                }
+            });
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (activeButton) {
+                activeButton.drag(e.clientX, e.clientY);
+            }
+        });
+
+        document.addEventListener('mouseup', (e) => {
+            if (activeButton) {
+                activeButton.endDrag(e.movementX, e.movementY);
+                activeButton = null;
+            }
+        });
+
+        function applyPhysics() {
+            buttons.forEach(button => {
+                button.updatePosition();
+            });
+
+            for (let i = 0; i < buttons.length; i++) {
+                for (let j = i + 1; j < buttons.length; j++) {
+                    buttons[i].resolveCollision(buttons[j]);
+                }
+            }
+
+            requestAnimationFrame(applyPhysics);
+        }
+
+        applyPhysics();
+    </script>
+</body>
+</html>
